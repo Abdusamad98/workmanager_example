@@ -1,31 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:workmanager_example/background_task_screen.dart';
 
 @pragma(
     'vm:entry-point') // Mandatory if the App is obfuscated or using Flutter 3.1+
 
 void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    int? totalExecutions;
-    final sharedPreference = await SharedPreferences.getInstance();
-
-    try {
-      totalExecutions = sharedPreference.getInt("totalExecutions");
-
-      for (int i = 0; i < 5; i++) {
-        await Future.delayed(const Duration(seconds: 1));
-        await sharedPreference.setInt("totalExecutions",
-            totalExecutions == null ? 1 : totalExecutions + 1);
-        totalExecutions = sharedPreference.getInt("totalExecutions");
+  Workmanager().executeTask((taskName, inputData) async {
+    if (taskName == "LOCATION") {
+      String locationText = '';
+      debugPrint("TASK STARTED ITS NAME: $taskName");
+      final sharedPreference = await SharedPreferences.getInstance();
+      try {
+        Position currentPosition = await Geolocator.getCurrentPosition();
+        await sharedPreference.setString("locationText",
+            "LONGITUDE: ${currentPosition.longitude}: ${DateTime.now().toString()}");
+        locationText = sharedPreference.getString("locationText") ?? "";
+        debugPrint(locationText);
+      } catch (err) {
+        Logger().e(err
+            .toString()); // Logger flutter package, prints error on the debug console
+        throw Exception(err);
       }
-    } catch (err) {
-      Logger().e(err
-          .toString()); // Logger flutter package, prints error on the debug console
-      throw Exception(err);
+      return Future.value(true);
+    } else if (taskName == "NEW_TASK") {
+      debugPrint("NEW TASK STARTED ITS NAME: $taskName");
+      debugPrint("NEW TASK STARTED ITS INPUT DATA: $inputData");
+      return Future.value(true);
     }
-    //print("Native called background task: $backgroundTask"); //simpleTask will be emitted here.
     return Future.value(true);
   });
 }
@@ -37,7 +42,13 @@ void main() async {
     isInDebugMode: true,
   );
   await SharedPreferences.getInstance();
-  Workmanager().registerOneOffTask("task-identifier", "simpleTask");
+
+  // Workmanager().cancelByUniqueName("locationId");
+  // Workmanager().registerPeriodicTask(
+  //   "locationIdByPeriodic",
+  //   "GET Continuous LOCATION PERIODIC",
+  //   frequency: const Duration(minutes: 16),
+  // );
   runApp(const MyApp());
 }
 
@@ -53,48 +64,6 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       home: BackgroundTaskUI(),
-    );
-  }
-}
-
-class BackgroundTaskUI extends StatefulWidget {
-  const BackgroundTaskUI({Key? key}) : super(key: key);
-
-  @override
-  State<BackgroundTaskUI> createState() => _BackgroundTaskUIState();
-}
-
-class _BackgroundTaskUIState extends State<BackgroundTaskUI> {
-  String numberText = "";
-
-  _init() async {
-    await Future.delayed(const Duration(seconds: 3));
-    var sharedPreference = await SharedPreferences.getInstance(); //
-    numberText = sharedPreference.getInt("totalExecutions").toString();
-    print("NUMBER :$numberText");
-    setState(() {});
-  }
-
-  @override
-  void initState() {
-    _init();
-    super.initState();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Background"),
-      ),
-      body: Center(
-        child: Text(
-          numberText,
-          style: const TextStyle(
-            fontSize: 40,
-          ),
-        ),
-      ),
     );
   }
 }
